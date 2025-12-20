@@ -5,11 +5,11 @@ using UnityEngine.UI;
 public class TypingUIController : MonoBehaviour
 {
     [Header("Textos")]
-    public TMP_Text targetWordText;      // si no lo usás, podés desactivarlo en la escena
+    public TMP_Text targetWordText;      
     public TMP_Text timerText;
     public TMP_Text scoreText;
-    public TMP_Text messageText;         // lo usamos solo al final
-    public TMP_Text typedFeedbackText;   // texto principal (coloreado)
+    public TMP_Text messageText;       
+    public TMP_Text typedFeedbackText;   
 
     [Header("Input")]
     public TMP_InputField inputField;
@@ -29,13 +29,13 @@ public class TypingUIController : MonoBehaviour
     public void SetTimer(float time)
     {
         if (timerText != null)
-            timerText.text = "Tiempo: " + time.ToString("0.0");
+            timerText.text = "Time: " + time.ToString("0.0");
     }
 
     public void SetScore(int score)
     {
         if (scoreText != null)
-            scoreText.text = "Puntos: " + score;
+            scoreText.text = "Highscore: " + score;
     }
 
     public void SetMessage(string message)
@@ -59,11 +59,7 @@ public class TypingUIController : MonoBehaviour
             retryButton.gameObject.SetActive(show);
     }
 
-    /// <summary>
-    /// Actualiza el texto coloreado letra por letra según lo que el usuario vaya tipeando.
-    /// Verde = correcta, Rojo = incorrecta, Blanco = aún no escrita.
-    /// Subraya la letra actual.
-    /// </summary>
+    
     public void UpdateTypedFeedback(string target, string typed)
     {
         if (typedFeedbackText == null)
@@ -97,9 +93,7 @@ public class TypingUIController : MonoBehaviour
         typedFeedbackText.text = result;
     }
 
-    /// <summary>
-    /// Marca toda la palabra objetivo en rojo.
-    /// </summary>
+ 
     public void MarkWholeWordAsError(string word)
     {
         if (typedFeedbackText == null)
