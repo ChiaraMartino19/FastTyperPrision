@@ -1,6 +1,5 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class SettingsPanel : MonoBehaviour
 {
@@ -8,34 +7,29 @@ public class SettingsPanel : MonoBehaviour
     public AudioController audioCtrl;
     public TypingUIController uiCtrl;
 
-    [Header("Managers (auto-detect)")]
-    public TypingGameManager phase1Manager;       
-    public TypingPhase2Manager phase2Manager;    
-
     [Header("UI")]
-    public GameObject panelRoot;   
-    public Button openButton;      
-    public Button closeButton;     
+    public GameObject panelRoot;
+    public Button openButton;
+    public Button closeButton;
 
-    public Toggle muteAllToggle;   
-    public Slider masterSlider;   
+    public Toggle muteAllToggle;
+    public Slider masterSlider;
+    public Slider keySlider;
+    public Slider correctSlider;
+    public Slider errorSlider;
+    public Slider countdownSlider;
 
-    public Slider keySlider;      
-    public Slider correctSlider;  
-    public Slider errorSlider;    
-    public Slider countdownSlider; 
-
-    private bool syncing = false;
-
-    
+    private bool syncing;
     private float prevTimeScale = 1f;
+
+  
+    private ISettingsPausable pausable;
 
     private void Awake()
     {
-        
         if (panelRoot != null) panelRoot.SetActive(false);
 
-    
+      
         if (openButton != null)
         {
             openButton.onClick.RemoveAllListeners();
@@ -51,34 +45,28 @@ public class SettingsPanel : MonoBehaviour
 
     private void Start()
     {
-        if (audioCtrl == null) audioCtrl = FindObjectOfType<AudioController>();
-        if (uiCtrl == null) uiCtrl = FindObjectOfType<TypingUIController>();
+        audioCtrl ??= FindObjectOfType<AudioController>();
+        uiCtrl ??= FindObjectOfType<TypingUIController>();
 
-       
-        if (phase1Manager == null) phase1Manager = FindObjectOfType<TypingGameManager>();
-        if (phase2Manager == null) phase2Manager = FindObjectOfType<TypingPhase2Manager>();
+        pausable = FindFirstActivePausable();
 
-        
-        if (muteAllToggle != null) muteAllToggle.onValueChanged.AddListener(OnMuteAllChanged);
-        if (masterSlider != null) masterSlider.onValueChanged.AddListener(OnMasterChanged);
+        muteAllToggle?.onValueChanged.AddListener(OnMuteAllChanged);
+        masterSlider?.onValueChanged.AddListener(OnMasterChanged);
 
-        if (keySlider != null) keySlider.onValueChanged.AddListener(_ => OnPerSoundChanged());
-        if (correctSlider != null) correctSlider.onValueChanged.AddListener(_ => OnPerSoundChanged());
-        if (errorSlider != null) errorSlider.onValueChanged.AddListener(_ => OnPerSoundChanged());
-        if (countdownSlider != null) countdownSlider.onValueChanged.AddListener(_ => OnPerSoundChanged());
+        keySlider?.onValueChanged.AddListener(_ => OnPerSoundChanged());
+        correctSlider?.onValueChanged.AddListener(_ => OnPerSoundChanged());
+        errorSlider?.onValueChanged.AddListener(_ => OnPerSoundChanged());
+        countdownSlider?.onValueChanged.AddListener(_ => OnPerSoundChanged());
     }
 
     public void OpenPanel()
     {
-        if (panelRoot == null) return;
-        if (panelRoot.activeSelf) return;
+        if (panelRoot == null || panelRoot.activeSelf) return;
 
-        prevTimeScale = Time.timeScale;
-        Time.timeScale = 0f;
-        audioCtrl?.StopCountdownOnly();
+        pausable ??= FindFirstActivePausable();
 
-        if (uiCtrl != null && uiCtrl.inputField != null)
-            uiCtrl.inputField.interactable = false;
+        PauseGame();
+        BlockInput(true);
 
         panelRoot.SetActive(true);
         SyncUIFromSavedSettings();
@@ -86,19 +74,62 @@ public class SettingsPanel : MonoBehaviour
 
     public void ClosePanel()
     {
-        if (panelRoot == null) return;
-        if (!panelRoot.activeSelf) return;
+        if (panelRoot == null || !panelRoot.activeSelf) return;
 
         panelRoot.SetActive(false);
 
-        Time.timeScale = prevTimeScale;
+        ResumeGame();
+        BlockInput(false);
+    }
 
-        if (uiCtrl != null && uiCtrl.inputField != null)
+    private void PauseGame()
+    {
+        audioCtrl?.StopCountdownOnly();
+
+        if (pausable != null)
         {
-            uiCtrl.inputField.interactable = true;
+            pausable.SetPausedBySettings(true);
+            return;
+        }
+
+        prevTimeScale = Time.timeScale;
+        Time.timeScale = 0f;
+    }
+
+    private void ResumeGame()
+    {
+        if (pausable != null)
+        {
+            pausable.SetPausedBySettings(false);
+            return;
+        }
+
+        Time.timeScale = prevTimeScale;
+    }
+
+    private void BlockInput(bool block)
+    {
+        if (uiCtrl?.inputField == null) return;
+
+        uiCtrl.inputField.interactable = !block;
+
+        if (!block)
+        {
             uiCtrl.inputField.ActivateInputField();
             uiCtrl.inputField.Select();
         }
+    }
+
+    private ISettingsPausable FindFirstActivePausable()
+    {
+
+        var behaviours = FindObjectsOfType<MonoBehaviour>(true);
+        foreach (var b in behaviours)
+        {
+            if (b is ISettingsPausable p && b.isActiveAndEnabled)
+                return p;
+        }
+        return null;
     }
 
 
@@ -107,7 +138,6 @@ public class SettingsPanel : MonoBehaviour
         if (audioCtrl == null) return;
 
         syncing = true;
-
         audioCtrl.LoadSettings();
 
         if (muteAllToggle != null) muteAllToggle.isOn = audioCtrl.muteAll;
@@ -124,9 +154,8 @@ public class SettingsPanel : MonoBehaviour
     private void OnMuteAllChanged(bool isMuted)
     {
         if (syncing || audioCtrl == null) return;
-
         audioCtrl.SetMuteAll(isMuted);
-        audioCtrl.ResetAll(); 
+        audioCtrl.ResetAll();
     }
 
     private void OnMasterChanged(float v)
@@ -147,7 +176,6 @@ public class SettingsPanel : MonoBehaviour
 
     public void SetSettingsButtonEnabled(bool enabled)
     {
-        if (openButton != null)
-            openButton.interactable = enabled;
+        if (openButton != null) openButton.interactable = enabled;
     }
 }

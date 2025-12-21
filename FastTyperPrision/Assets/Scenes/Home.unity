@@ -340,15 +340,15 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 1525956960}
-        m_TargetAssemblyTypeName: HomeStartCountdown, Assembly-CSharp
-        m_MethodName: StartGame
-        m_Mode: 1
+        m_TargetAssemblyTypeName: CountdownTransition, Assembly-CSharp
+        m_MethodName: Play
+        m_Mode: 3
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
+          m_IntArgument: 1
           m_FloatArgument: 0
-          m_StringArgument: 
+          m_StringArgument: Phase1
           m_BoolArgument: 0
         m_CallState: 2
 --- !u!114 &650367610
@@ -674,7 +674,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1068512795
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1028,8 +1028,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1525956958}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 363.7318, y: 145.52197, z: 1.9118325}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 363.7318, y: 145.52197, z: 1.9118322}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1047,10 +1047,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a79f534447405fb498937aff3857bd1b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  countdownPanel: {fileID: 1068512794}
-  countdownText: {fileID: 133653581}
+  panel: {fileID: 1068512794}
+  counterText: {fileID: 133653581}
   startFrom: 5
-  phase1SceneName: Phase1
+  goDuration: 0.5
 --- !u!1 &1933260718
 GameObject:
   m_ObjectHideFlags: 0
@@ -1364,5 +1364,5 @@ SceneRoots:
   m_Roots:
   - {fileID: 1346436165}
   - {fileID: 1933260722}
-  - {fileID: 2127812311}
   - {fileID: 1525956959}
+  - {fileID: 2127812311}

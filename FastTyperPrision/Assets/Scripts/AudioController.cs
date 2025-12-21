@@ -4,7 +4,7 @@ public class AudioController : MonoBehaviour
 {
     [Header("Sources")]
     public AudioSource sfxSource;        
-    public AudioSource countdownSource; 
+    public AudioSource countdownSource;  
 
     [Header("Clips")]
     public AudioClip keySound;
@@ -24,11 +24,9 @@ public class AudioController : MonoBehaviour
     [Range(0f, 1f)] public float errorVolume = 1f;
     [Range(0f, 1f)] public float countdownVolume = 1f;
 
-    
     private bool isActive = false;
     private int lastCountdownSecond = -1;
 
-  
     private const string K_MasterVol = "audio_masterVol";
     private const string K_MuteAll = "audio_muteAll";
     private const string K_KeyVol = "audio_keyVol";
@@ -38,10 +36,8 @@ public class AudioController : MonoBehaviour
 
     private void Awake()
     {
-        
         LoadSettings();
 
-       
         if (sfxSource != null)
         {
             sfxSource.playOnAwake = false;
@@ -55,8 +51,6 @@ public class AudioController : MonoBehaviour
         }
     }
 
-   
-
     public void SetActive(bool active)
     {
         isActive = active;
@@ -64,7 +58,6 @@ public class AudioController : MonoBehaviour
             ResetAll();
     }
 
-    
     public void ResetAll()
     {
         lastCountdownSecond = -1;
@@ -76,13 +69,22 @@ public class AudioController : MonoBehaviour
             countdownSource.Stop();
     }
 
+    public void StopCountdownOnly()
+    {
+        lastCountdownSecond = -1;
+
+        if (countdownSource != null)
+            countdownSource.Stop();
+    }
+
     public void PlayKey()
     {
         if (!isActive) return;
         if (sfxSource == null || keySound == null) return;
 
         float v = FinalVol(keyVolume);
-        if (v > 0f) sfxSource.PlayOneShot(keySound, v);
+        if (v > 0f)
+            sfxSource.PlayOneShot(keySound, v);
     }
 
     public void PlayCorrect()
@@ -91,7 +93,8 @@ public class AudioController : MonoBehaviour
         if (sfxSource == null || correctSound == null) return;
 
         float v = FinalVol(correctVolume);
-        if (v > 0f) sfxSource.PlayOneShot(correctSound, v);
+        if (v > 0f)
+            sfxSource.PlayOneShot(correctSound, v);
     }
 
     public void PlayError()
@@ -100,10 +103,10 @@ public class AudioController : MonoBehaviour
         if (sfxSource == null || errorSound == null) return;
 
         float v = FinalVol(errorVolume);
-        if (v > 0f) sfxSource.PlayOneShot(errorSound, v);
+        if (v > 0f)
+            sfxSource.PlayOneShot(errorSound, v);
     }
 
-    
     public void UpdateCountdown(float remainingSeconds)
     {
         if (!isActive) return;
@@ -116,13 +119,13 @@ public class AudioController : MonoBehaviour
             if (sec != lastCountdownSecond)
             {
                 float v = FinalVol(countdownVolume);
-                if (v > 0f) countdownSource.PlayOneShot(countdownTickSound, v);
+                if (v > 0f)
+                    countdownSource.PlayOneShot(countdownTickSound, v);
+
                 lastCountdownSecond = sec;
             }
         }
     }
-
-   
 
     public void SetMuteAll(bool mute)
     {
@@ -160,7 +163,6 @@ public class AudioController : MonoBehaviour
         SaveSettings();
     }
 
- 
     private float FinalVol(float perSoundVol)
     {
         if (muteAll) return 0f;
@@ -189,17 +191,5 @@ public class AudioController : MonoBehaviour
         correctVolume = PlayerPrefs.GetFloat(K_CorrectVol, 1f);
         errorVolume = PlayerPrefs.GetFloat(K_ErrorVol, 1f);
         countdownVolume = PlayerPrefs.GetFloat(K_CountVol, 1f);
-    }
-    public void StopCountdownOnly()
-    {
-        lastCountdownSecond = -1;
-        if (countdownSource != null)
-            countdownSource.Stop();
-    }
-
- 
-    public void StopAllNow()
-    {
-        ResetAll();
     }
 }

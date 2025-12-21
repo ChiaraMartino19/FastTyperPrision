@@ -5,105 +5,71 @@ using UnityEngine;
 public class TypingGameManager : MonoBehaviour
 {
     [Header("Referencias")]
-    public TypingUIController ui;
+    [SerializeField] private TypingUIController ui;
 
     [Header("Audio (Controlador externo)")]
-    public AudioController audioCtrl;
+    [SerializeField] private AudioController audioCtrl;
 
     [Header("Metrics (externo)")]
-    public TypingMetrics metrics;
+    [SerializeField] private TypingMetrics metrics;
 
     [Header("FASE 1 - Fast Typer (Timer Global)")]
-    public float totalSessionTime = 60f;
-    public float errorRevealDelay = 0.3f;
-    [TextArea] public string[] wordBank;
+    [SerializeField] private float totalSessionTime = 60f;
+    [SerializeField] private float errorRevealDelay = 0.3f;
+    [TextArea][SerializeField] private string[] wordBank;
 
     [Header("Countdown")]
-    public int countdownStartAtSeconds = 10;
+    [SerializeField] private int countdownStartAtSeconds = 10;
 
     [Header("UI - Settings Panel")]
-    public SettingsPanel settingsPanel;
+    [SerializeField] private SettingsPanel settingsPanel;
 
     [Header("UI - Results Overlay")]
-    public ResultsOverlayUI resultsOverlay;
+    [SerializeField] private ResultsOverlayUI resultsOverlay;
 
-   
     private float remainingSessionTime;
     private string currentTarget = "";
-    private bool gameEnded = false;
-    private bool transitioning = false;
-    private bool settingsLocked = false;
+    private bool gameEnded;
+    private bool transitioning;
+    private bool settingsLocked;
 
-   
-    private readonly List<string> shuffled = new List<string>();
-    private int shuffleIndex = 0;
+    private readonly List<string> shuffled = new();
+    private int shuffleIndex;
 
-    
     private string lastTypedText = "";
-
-    
-    private bool overlayWired = false;
 
     private void Awake()
     {
-       
-        if (ui == null) ui = FindObjectOfType<TypingUIController>();
-        if (audioCtrl == null) audioCtrl = FindObjectOfType<AudioController>();
-        if (metrics == null) metrics = FindObjectOfType<TypingMetrics>();
-        if (settingsPanel == null) settingsPanel = FindObjectOfType<SettingsPanel>();
-        if (resultsOverlay == null) resultsOverlay = FindObjectOfType<ResultsOverlayUI>();
+        ui ??= FindObjectOfType<TypingUIController>();
+        audioCtrl ??= FindObjectOfType<AudioController>();
+        metrics ??= FindObjectOfType<TypingMetrics>();
+        settingsPanel ??= FindObjectOfType<SettingsPanel>();
+        resultsOverlay ??= FindObjectOfType<ResultsOverlayUI>();
 
-       
-        if (audioCtrl != null)
-            audioCtrl.countdownStartAtSeconds = countdownStartAtSeconds;
-
-        
         if (ui != null && ui.inputField != null)
         {
             ui.inputField.onValueChanged.RemoveAllListeners();
             ui.inputField.onValueChanged.AddListener(OnUserTyping);
         }
 
-       
         ui?.ShowRetryButton(false);
+
+        if (audioCtrl != null)
+            audioCtrl.countdownStartAtSeconds = countdownStartAtSeconds;
+
+        resultsOverlay?.WireButtons();
     }
 
     private void Start()
     {
-        
-        WireOverlayOnce();
-
         StartPhase();
     }
-
-    private void WireOverlayOnce()
-    {
-        if (overlayWired) return;
-        if (resultsOverlay != null)
-        {
-            resultsOverlay.WireButtons();
-            overlayWired = true;
-        }
-    }
-
-    
 
     private void StartPhase()
     {
         Time.timeScale = 1f;
 
-        if (resultsOverlay != null)
-            resultsOverlay.Hide();
-
-        
-        if (wordBank == null || wordBank.Length == 0)
-        {
-            wordBank = new string[]
-            {
-                "casa","gato","pato","mesa","sol","pan","nube","mano","taza","vaso",
-                "rojo","azul","luz","boca","dedo","tren","rio","lana","flor","salto"
-            };
-        }
+        EnsureWordBank();
 
         gameEnded = false;
         transitioning = false;
@@ -112,13 +78,10 @@ public class TypingGameManager : MonoBehaviour
         settingsPanel?.SetSettingsButtonEnabled(true);
 
         remainingSessionTime = totalSessionTime;
-
         lastTypedText = "";
 
-        
         metrics?.BeginSession(totalSessionTime);
 
-        
         if (audioCtrl != null)
         {
             audioCtrl.countdownStartAtSeconds = countdownStartAtSeconds;
@@ -126,14 +89,24 @@ public class TypingGameManager : MonoBehaviour
             audioCtrl.ResetAll();
         }
 
-        PrepareNewShuffle();
-
         ui?.SetScore(0);
-        ui?.SetMessage(""); 
-        ui?.ShowRetryButton(false); 
-
-        LoadNextWord();
+        ui?.SetMessage("");
+        ui?.ShowRetryButton(false);
         ui?.SetTimer(remainingSessionTime);
+
+        PrepareNewShuffle();
+        LoadNextWord();
+    }
+
+    private void EnsureWordBank()
+    {
+        if (wordBank != null && wordBank.Length > 0) return;
+
+        wordBank = new[]
+        {
+            "tiempo","mirada","camino","sentir","buscar","formar","cambio","memoria","objeto","idioma",
+            "origen","sentido","cuerpo","idea","imagen","punto","enfoque","patrón","símbolo","símbolo"
+        };
     }
 
     private void PrepareNewShuffle()
@@ -149,17 +122,14 @@ public class TypingGameManager : MonoBehaviour
         if (shuffleIndex >= shuffled.Count)
             PrepareNewShuffle();
 
-        currentTarget = shuffled[shuffleIndex];
-        shuffleIndex++;
+        currentTarget = shuffled[shuffleIndex++];
+        lastTypedText = "";
 
         ui?.SetTargetWord(currentTarget);
         ui?.UpdateTypedFeedback(currentTarget, "");
         ui?.ClearAndFocusInput();
 
-       
         metrics?.BeginWord(currentTarget);
-
-        lastTypedText = "";
     }
 
     private void Update()
@@ -177,62 +147,53 @@ public class TypingGameManager : MonoBehaviour
             settingsPanel?.SetSettingsButtonEnabled(false);
         }
 
-      
         audioCtrl?.UpdateCountdown(remainingSessionTime);
 
         if (remainingSessionTime <= 0f)
             EndPhase();
     }
 
-   
-
     private void OnUserTyping(string typedText)
     {
-        if (gameEnded) return;
-        if (transitioning) return;
+        if (gameEnded || transitioning) return;
+        if (string.IsNullOrEmpty(currentTarget)) return;
 
-        
         if (typedText.Length > lastTypedText.Length)
             audioCtrl?.PlayKey();
 
         lastTypedText = typedText;
 
-        
         ui?.UpdateTypedFeedback(currentTarget, typedText);
 
-        
-        int limit = Mathf.Min(typedText.Length, currentTarget.Length);
-        for (int i = 0; i < limit; i++)
-        {
-            if (typedText[i] != currentTarget[i])
-            {
-                StartCoroutine(HandleErrorWithDelay(currentTarget, typedText));
-                return;
-            }
-        }
-
-        
-        if (typedText.Length > currentTarget.Length)
+        if (IsMismatch(currentTarget, typedText))
         {
             StartCoroutine(HandleErrorWithDelay(currentTarget, typedText));
             return;
         }
 
-        
         if (typedText == currentTarget)
         {
             metrics?.EndWord(currentTarget, typedText, success: true);
 
-            int score = (metrics != null) ? metrics.GetCompletedWords() : 0;
+            int score = metrics != null ? metrics.GetCompletedWords() : 0;
             ui?.SetScore(score);
 
             audioCtrl?.PlayCorrect();
-
             LoadNextWord();
         }
     }
 
-   
+    private bool IsMismatch(string target, string typed)
+    {
+        if (typed.Length > target.Length) return true;
+
+        int limit = Mathf.Min(typed.Length, target.Length);
+        for (int i = 0; i < limit; i++)
+        {
+            if (typed[i] != target[i]) return true;
+        }
+        return false;
+    }
 
     private IEnumerator HandleErrorWithDelay(string target, string typed)
     {
@@ -243,73 +204,61 @@ public class TypingGameManager : MonoBehaviour
 
         metrics?.EndWord(target, typed, success: false);
 
-       
         yield return new WaitForSecondsRealtime(errorRevealDelay);
 
         LoadNextWord();
         transitioning = false;
     }
 
-   
-
     private void EndPhase()
     {
         if (gameEnded) return;
+
         gameEnded = true;
         transitioning = false;
 
-        
         if (audioCtrl != null)
         {
             audioCtrl.SetActive(false);
             audioCtrl.ResetAll();
         }
 
-       
         settingsPanel?.SetSettingsButtonEnabled(true);
 
-        
         metrics?.EndSessionAndUpdatePersonalBest();
 
-        
         ui?.SetTargetWord("");
         ui?.UpdateTypedFeedback("", "");
         ui?.SetTimer(0f);
 
-       
-        string resumen;
-        if (metrics != null)
-        {
-            resumen =
-                "FASE 1 terminada\n" +
-                $"Palabras correctas: {metrics.GetCompletedWords()}\n" +
-                $"WPM: {metrics.GetWPM():F1}\n" +
-                $"Precisión: {metrics.GetAccuracyPercent():F1}%\n" +
-                $"Tasa de error: {metrics.GetErrorRatePercent():F1}%\n" +
-                $"Tiempo reacción prom.: {metrics.GetAvgReactionTimeSeconds():F2}s\n" +
-                $"Racha máxima: {metrics.GetMaxStreak()}\n" +
-                $"Mejor marca (WPM): {metrics.GetBestWPM():F1}\n" +
-                $"Mejor marca (Precisión): {metrics.GetBestAccuracyPercent():F1}%";
-        }
-        else
-        {
-            resumen = "FASE 1 terminada\n(No se encontró TypingMetrics en la escena)";
-        }
+        string resumen = BuildSummary();
 
-        
         if (resultsOverlay != null)
-        {
-            WireOverlayOnce(); 
             resultsOverlay.Show(resumen);
-        }
         else
-        {
-            Debug.LogError("ResultsOverlayUI no asignado/encontrado. Mostrando resumen en ui.SetMessage().");
             ui?.SetMessage(resumen);
-        }
+
+        resultsOverlay.WireButtons();
+        resultsOverlay.Show(resumen);
+
     }
 
-    
+    private string BuildSummary()
+    {
+        if (metrics == null)
+            return "FASE 1 terminada\n(No se encontró TypingMetrics en la escena)";
+
+        return
+            "FASE 1 terminada\n" +
+            $"Palabras correctas: {metrics.GetCompletedWords()}\n" +
+            $"WPM: {metrics.GetWPM():F1}\n" +
+            $"Precisión: {metrics.GetAccuracyPercent():F1}%\n" +
+            $"Tasa de error: {metrics.GetErrorRatePercent():F1}%\n" +
+            $"Tiempo reacción prom.: {metrics.GetAvgReactionTimeSeconds():F2}s\n" +
+            $"Racha máxima: {metrics.GetMaxStreak()}\n" +
+            $"Mejor marca (WPM): {metrics.GetBestWPM():F1}\n" +
+            $"Mejor marca (Precisión): {metrics.GetBestAccuracyPercent():F1}%";
+    }
 
     private void ShuffleList(List<string> list)
     {

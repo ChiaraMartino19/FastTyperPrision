@@ -2,7 +2,7 @@
 using System.Linq;
 using UnityEngine;
 
-public class TypingPhase2Manager : MonoBehaviour
+public class TypingPhase2Manager : MonoBehaviour, ISettingsPausable
 {
     [Header("Refs")]
     public TypingParagraphRenderer paragraphRenderer;
@@ -21,13 +21,14 @@ public class TypingPhase2Manager : MonoBehaviour
     [Header("Text Normalization")]
     public int maxCharacters = 280;
 
-
     [TextArea(4, 10)]
     public string[] paragraphs;
 
     private float remaining;
     private bool ended;
     private bool settingsLocked;
+
+    private bool pausedBySettings;
 
     private string target = "";
     private string typed = "";
@@ -36,28 +37,36 @@ public class TypingPhase2Manager : MonoBehaviour
     private int correctChars = 0;
     private int errorChars = 0;
 
-    private Dictionary<string, int> bigramErrors = new Dictionary<string, int>();
+    private readonly Dictionary<string, int> bigramErrors = new Dictionary<string, int>();
+
+    private float elapsed;                
+    private float wpmUpdateTimer = 0f;  
+    [SerializeField] private float wpmUiUpdateRate = 0.15f; 
+
+    private void Awake()
+    {
+        paragraphRenderer ??= FindObjectOfType<TypingParagraphRenderer>();
+        audioCtrl ??= FindObjectOfType<AudioController>();
+        settingsPanel ??= FindObjectOfType<SettingsPanel>();
+        resultsOverlay ??= FindObjectOfType<ResultsOverlayUI>();
+        ui ??= FindObjectOfType<TypingUIController>();
+        profile ??= FindObjectOfType<AdaptiveTypingProfile>();
+    }
 
     private void Start()
     {
-        if (paragraphRenderer == null) paragraphRenderer = FindObjectOfType<TypingParagraphRenderer>();
-        if (audioCtrl == null) audioCtrl = FindObjectOfType<AudioController>();
-        if (settingsPanel == null) settingsPanel = FindObjectOfType<SettingsPanel>();
-        if (resultsOverlay == null) resultsOverlay = FindObjectOfType<ResultsOverlayUI>();
-        if (ui == null) ui = FindObjectOfType<TypingUIController>();
-        if (profile == null) profile = FindObjectOfType<AdaptiveTypingProfile>();
-
         resultsOverlay?.WireButtons();
         StartPhase2();
     }
 
     public void StartPhase2()
     {
-    
         Time.timeScale = 1f;
 
         ended = false;
         settingsLocked = false;
+        pausedBySettings = false;
+
         remaining = totalSessionTime;
 
         correctChars = 0;
@@ -67,46 +76,51 @@ public class TypingPhase2Manager : MonoBehaviour
         typed = "";
         cursorIndex = 0;
 
+        elapsed = 0f;
+        wpmUpdateTimer = 0f;
+
         target = NormalizeText(PickAdaptiveParagraph());
-
-
-        if (paragraphRenderer != null)
-            paragraphRenderer.Render(target, typed, cursorIndex);
+        paragraphRenderer?.Render(target, typed, cursorIndex);
 
         ui?.SetMessage("");
-        ui?.SetScore(0);
+        ui?.SetScore(0);       
         ui?.SetTimer(remaining);
 
-       
-        audioCtrl?.SetActive(true);
-        audioCtrl?.ResetAll();
-        audioCtrl.countdownStartAtSeconds = countdownLockAtSeconds;
+        if (audioCtrl != null)
+        {
+            audioCtrl.SetActive(true);
+            audioCtrl.ResetAll();
+            audioCtrl.countdownStartAtSeconds = countdownLockAtSeconds;
+        }
 
         settingsPanel?.SetSettingsButtonEnabled(true);
     }
 
-    private string NormalizeText(string text)
+    public void SetPausedBySettings(bool paused)
     {
-        if (string.IsNullOrEmpty(text)) return text;
-        if (text.Length <= maxCharacters) return text;
+        pausedBySettings = paused;
 
-        int cut = text.LastIndexOf(' ', maxCharacters);
-        if (cut < 0) cut = maxCharacters;
-
-        return text.Substring(0, cut).Trim();
+        if (paused && audioCtrl != null)
+            audioCtrl.StopCountdownOnly();
     }
-
 
     private void Update()
     {
-        
         if (ended) return;
+        if (pausedBySettings) return;
 
-        if (Time.timeScale == 0f) return;
-        remaining -= Time.deltaTime;
+        remaining -= Time.unscaledDeltaTime;
         if (remaining < 0f) remaining = 0f;
-
         ui?.SetTimer(remaining);
+
+        elapsed += Time.unscaledDeltaTime;
+
+        wpmUpdateTimer += Time.unscaledDeltaTime;
+        if (wpmUpdateTimer >= wpmUiUpdateRate)
+        {
+            wpmUpdateTimer = 0f;
+            ui?.SetScore(CalcLiveWpm());
+        }
 
         if (!settingsLocked && remaining <= countdownLockAtSeconds && remaining > 0f)
         {
@@ -115,7 +129,6 @@ public class TypingPhase2Manager : MonoBehaviour
         }
 
         audioCtrl?.UpdateCountdown(remaining);
-
         HandleTypingInput();
 
         if (remaining <= 0f)
@@ -124,8 +137,7 @@ public class TypingPhase2Manager : MonoBehaviour
 
     private void HandleTypingInput()
     {
-        
-        if (Time.timeScale == 0f) return;
+        if (pausedBySettings) return;
 
         if (!Input.anyKeyDown) return;
         if (cursorIndex >= target.Length) return;
@@ -136,17 +148,12 @@ public class TypingPhase2Manager : MonoBehaviour
         foreach (char c in input)
         {
             if (cursorIndex >= target.Length) break;
-
-        
             if (c == '\r' || c == '\n') continue;
 
             char targetChar = target[cursorIndex];
             bool ok = (c == targetChar);
 
-            
             audioCtrl?.PlayKey();
-
-           
             typed += c;
 
             if (ok)
@@ -158,24 +165,26 @@ public class TypingPhase2Manager : MonoBehaviour
                 errorChars++;
                 audioCtrl?.PlayError();
 
-                
                 profile?.AddCharError(targetChar);
 
                 if (cursorIndex > 0)
                 {
                     char prev = target[cursorIndex - 1];
                     string bg = $"{prev}{targetChar}";
-
-                    int prevCount;
-                    bigramErrors.TryGetValue(bg, out prevCount);
-                    bigramErrors[bg] = prevCount + 1;
+                    bigramErrors[bg] = bigramErrors.TryGetValue(bg, out int v) ? v + 1 : 1;
                 }
             }
 
             cursorIndex++;
             paragraphRenderer?.Render(target, typed, cursorIndex);
-            ui?.SetScore(correctChars);
         }
+    }
+
+    private int CalcLiveWpm()
+    {
+        float minutes = Mathf.Max(elapsed, 0.1f) / 60f;
+        float wpm = (correctChars / 5f) / minutes;
+        return Mathf.FloorToInt(wpm);
     }
 
     private void EndPhase2()
@@ -187,7 +196,6 @@ public class TypingPhase2Manager : MonoBehaviour
         audioCtrl?.ResetAll();
 
         settingsPanel?.SetSettingsButtonEnabled(true);
-
         paragraphRenderer?.Render("", "", 0);
 
         float minutes = Mathf.Max(totalSessionTime, 0.01f) / 60f;
@@ -202,15 +210,13 @@ public class TypingPhase2Manager : MonoBehaviour
             .Select(kv => $"{kv.Key} ({kv.Value})")
             .ToArray();
 
-        string bigramLine = topBigrams.Length > 0 ? string.Join(", ", topBigrams) : "—";
-
         string resumen =
             "FASE 2 terminada\n" +
             $"Caracteres: {typed.Length}\n" +
             $"WPM: {wpm:F1}\n" +
             $"Precisión: {accuracy:F1}%\n" +
             $"Tasa de error: {errorRate:F1}%\n" +
-            $"Top bigramas: {bigramLine}";
+            $"Top bigramas: {(topBigrams.Length > 0 ? string.Join(", ", topBigrams) : "—")}";
 
         if (resultsOverlay != null) resultsOverlay.Show(resumen);
         else ui?.SetMessage(resumen);
@@ -222,5 +228,16 @@ public class TypingPhase2Manager : MonoBehaviour
             return "La lectura es una habilidad cognitiva compleja que requiere atención sostenida.";
 
         return paragraphs[Random.Range(0, paragraphs.Length)];
+    }
+
+    private string NormalizeText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        if (text.Length <= maxCharacters) return text;
+
+        int cut = text.LastIndexOf(' ', maxCharacters);
+        if (cut < 0) cut = maxCharacters;
+
+        return text.Substring(0, cut).Trim();
     }
 }
